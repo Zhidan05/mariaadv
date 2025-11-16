@@ -19,6 +19,17 @@
       <artifactId>javafx-controls</artifactId>
       <version>${javafx.version}</version>
     </dependency>
+
+    <!-- 
+      TAMBAHKAN DEPENDENSI INI 
+      Ini akan mengunduh file JAR untuk Media (MediaPlayer, Audio, Video)
+    -->
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-media</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+
   </dependencies>
 
   <build>

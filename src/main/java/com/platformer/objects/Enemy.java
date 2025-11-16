@@ -2,10 +2,11 @@ package com.platformer.objects;
 
 import com.platformer.tiled.TiledMap;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 
 /**
- * Enemy titik biru dengan fisika tile (solid + slope).
+ * Enemy goblin dengan sprite animasi + fisika tile (solid + slope).
  * AI:
  *  - Mengejar player secara horizontal.
  *  - Lompat kalau:
@@ -19,7 +20,7 @@ public class Enemy {
     public boolean onGround = false;
     public boolean alive = true;
 
-    // ukuran & visual
+    // ukuran collider (AABB)
     private final double w, h;
     private final double radius;
 
@@ -32,12 +33,42 @@ public class Enemy {
     // cooldown supaya tidak spam lompat
     private double jumpCooldown = 0;
 
+    // ============= SPRITE =============
+    private static final Image IMG_STAND;
+    private static final Image IMG_RUN1;
+    private static final Image IMG_RUN2;
+    private static final Image IMG_JUMP;
+
+    static {
+        // Pastikan file-file ini ada di src/main/resources/assets/enemy
+        // dan akan terbaca sebagai /enemy/NamaFile.png di classpath.
+        IMG_STAND = new Image(Enemy.class.getResourceAsStream("/enemy/Stand.png"));
+        IMG_RUN1  = new Image(Enemy.class.getResourceAsStream("/enemy/Run1.png"));
+        IMG_RUN2  = new Image(Enemy.class.getResourceAsStream("/enemy/Run2.png"));
+        IMG_JUMP  = new Image(Enemy.class.getResourceAsStream("/enemy/Jump.png"));
+    }
+
+    private enum AnimState {
+        STAND, RUN, JUMP
+    }
+
+    private AnimState animState = AnimState.STAND;
+    private boolean facingRight = true;
+
+    // RUN anim: frame 0 (Run1), frame 1 (Run2)
+    private int runFrame = 0;
+    private double runTimer = 0;
+    private static final double RUN_FRAME_DURATION = 0.25; // 4 frame per detik
+
+    // scale sprite relatif ke collider (supaya musuh kelihatan lebih besar)
+    private final double spriteScale = 2.0;
+
     public Enemy(double x, double y) {
         this.radius = 12;
         this.w = radius * 2;
         this.h = radius * 2;
         this.x = x;
-        this.y = y - h; // spawn dari titik object → top-left
+        this.y = y - h; // spawn dari titik object → top-left collider
     }
 
     // pusat, dipakai untuk AI & hitbox
@@ -78,6 +109,10 @@ public class Enemy {
             if (vx < -maxSpeed) vx = -maxSpeed;
         }
 
+        // arah hadap sprite
+        if (vx > 10)  facingRight = true;
+        if (vx < -10) facingRight = false;
+
         // gravitasi
         vy += gravity * dt;
 
@@ -95,15 +130,10 @@ public class Enemy {
         if (yr.hit) vy = 0;
 
         // ===== Logika lompat otomatis =====
-        // Player jauh di atas?
         double dyToPlayer = targetY - centerY();
-        boolean playerAbove = dyToPlayer < -32;                // ≥ 1 tile di atas
-        boolean closeHoriz  = Math.abs(dxToPlayer) < 240;      // dalam ±7-8 tile
+        boolean playerAbove = dyToPlayer < -32;           // ≥ 1 tile di atas
+        boolean closeHoriz  = Math.abs(dxToPlayer) < 240; // dalam ±7-8 tile
 
-        // Kalau di tanah dan:
-        //  - mentok dinding, atau
-        //  - player berada di atas & cukup dekat secara horizontal
-        // dan cooldown habis → lompat
         if (onGround && jumpCooldown <= 0 &&
                 (blockedHoriz || (playerAbove && closeHoriz))) {
 
@@ -111,17 +141,75 @@ public class Enemy {
             onGround = false;
             jumpCooldown = 0.35; // tunggu sebentar sebelum boleh lompat lagi
         }
+
+        // ============ ANIM STATE ============
+        if (!onGround) {
+            animState = AnimState.JUMP;
+        } else if (Math.abs(vx) > 20) {
+            animState = AnimState.RUN;
+        } else {
+            animState = AnimState.STAND;
+        }
+
+        // ============ RUN FRAME ============
+        if (animState == AnimState.RUN) {
+            runTimer += dt;
+            while (runTimer >= RUN_FRAME_DURATION) {
+                runTimer -= RUN_FRAME_DURATION;
+                runFrame = 1 - runFrame; // 0 <-> 1
+            }
+        } else {
+            runTimer = 0;
+            runFrame = 0;
+        }
     }
 
     public void render(GraphicsContext g) {
         if (!alive) return;
-        g.setFill(Color.web("#2D8CFF")); // biru
-        g.fillOval(x, y, w, h);
+
+        Image img;
+        switch (animState) {
+            case JUMP:
+                img = IMG_JUMP;
+                break;
+            case RUN:
+                img = (runFrame == 0) ? IMG_RUN1 : IMG_RUN2;
+                break;
+            case STAND:
+            default:
+                img = IMG_STAND;
+                break;
+        }
+
+        double drawW = w * spriteScale;
+        double drawH = h * spriteScale;
+
+        // pusatkan sprite di atas collider
+        double drawX = x - (drawW - w) / 2.0;
+        double drawY = y - (drawH - h);
+
+        g.save();
+
+        if (facingRight) {
+            g.drawImage(img, drawX, drawY, drawW, drawH);
+        } else {
+            // flip horizontal
+            g.translate(drawX + drawW, drawY);
+            g.scale(-1, 1);
+            g.drawImage(img, 0, 0, drawW, drawH);
+        }
+
+        g.restore();
+
+        // (opsional) debug collider:
+        // g.setStroke(Color.RED);
+        // g.strokeRect(x, y, w, h);
     }
 
     // ==== Collision helpers (mirip Player) ====
 
-    private double collideX(double oldX, double newX, double y, double w, double h, TiledMap map, int tile) {
+    private double collideX(double oldX, double newX, double y, double w, double h,
+                            TiledMap map, int tile) {
         if (newX > oldX) { // ke kanan
             double right = newX + w - 1;
             int topT = (int)Math.floor(y / tile);
@@ -149,7 +237,8 @@ public class Enemy {
 
     private static class YRes { double y; boolean grounded; boolean hit; }
 
-    private YRes collideY(double oldY, double newY, double x, double w, double h, TiledMap map, int tile) {
+    private YRes collideY(double oldY, double newY, double x, double w, double h,
+                          TiledMap map, int tile) {
         YRes r = new YRes();
         r.y = newY;
         r.grounded = false;

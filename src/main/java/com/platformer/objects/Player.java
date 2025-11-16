@@ -1,8 +1,12 @@
 package com.platformer.objects;
 
+// TAMBAHAN: Impor untuk cek flag 'gameBeaten'
+import com.platformer.GameCanvas; 
 import com.platformer.tiled.TiledMap;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.canvas.GraphicsContext;
+// TAMBAHAN: Impor untuk efek "Golden Player"
+import javafx.scene.effect.ColorAdjust;
 import javafx.scene.image.Image;
 
 public class Player {
@@ -16,15 +20,19 @@ public class Player {
     private final double h;
 
     private final double moveAccel = 1600;
-    private final double maxSpeed = 260;
+    private final double maxSpeed = 260; // Kecepatan dasar
     private final double gravity = 1900;
-    public final double jumpVel = 600;
+    public final double jumpVel = 600; // Lompatan dasar
     private final double friction = 10;
 
     public int hp = 3;
     public double invTime = 0;
 
+    // TAMBAHAN: Variabel untuk menyimpan level saat ini
+    private int currentLevel = 0;
+
     // ============ SPRITE ============
+    // ... (Tidak ada perubahan di 'static' block) ...
     private static final Image IMG_STAND;
     private static final Image IMG_RUN1;
     private static final Image IMG_RUN2;
@@ -40,17 +48,11 @@ public class Player {
     private enum AnimState {
         STAND, RUN, JUMP
     }
-
     private AnimState animState = AnimState.STAND;
-
     private boolean facingRight = true;
-
-    // RUN anim: frame 0 (Run1), frame 1 (Run2)
     private int runFrame = 0;
     private double runTimer = 0;
-    // ganti ke nilai yang kamu mau (0.5 detik per frame sesuai permintaan)
     private static final double RUN_FRAME_DURATION = 0.5;
-
     private final double spriteScale = 2.0;
 
     public Player(double spawnX, double spawnY, double size) {
@@ -58,6 +60,11 @@ public class Player {
         this.h = size;
         this.x = spawnX;
         this.y = spawnY - h;
+    }
+
+    // TAMBAHAN: Method untuk 'memberi tahu' player dia di level berapa
+    public void setLevel(int levelIndex) {
+        this.currentLevel = levelIndex;
     }
 
     // ============ UPDATE ============
@@ -77,30 +84,35 @@ public class Player {
         else if (right && !left)
             dir = 1;
 
-        boolean movePressed = (dir != 0); // dipakai untuk animasi (RUN hanya kalau tombol ditekan)
+        boolean movePressed = (dir != 0); 
+
+        // ==== TAMBAHAN: Skill Level 2 (index 1) "Lincah" ====
+        double currentMaxSpeed = maxSpeed;
+        if (currentLevel >= 1) { // Mulai dari level 2
+            currentMaxSpeed *= 1.15; // Tambah 15% kecepatan
+        }
+        // =====================================================
 
         // gerak horizontal
         if (dir == 0) {
             vx -= vx * friction * dt;
         } else {
             vx += dir * moveAccel * dt;
-            if (vx > maxSpeed)
-                vx = maxSpeed;
-            if (vx < -maxSpeed)
-                vx = -maxSpeed;
+            // Gunakan kecepatan yang sudah dimodifikasi
+            if (vx > currentMaxSpeed)
+                vx = currentMaxSpeed;
+            if (vx < -currentMaxSpeed)
+                vx = -currentMaxSpeed;
         }
 
-        // sangat kecil → nol, supaya posisi tidak "getar"
         if (Math.abs(vx) < 5)
             vx = 0;
 
-        // arah hadap
         if (vx > 10)
             facingRight = true;
         if (vx < -10)
             facingRight = false;
 
-        // gravitasi
         vy += gravity * dt;
 
         // --- gerak X ---
@@ -115,21 +127,26 @@ public class Player {
         if (yr.hit)
             vy = 0;
 
+        // ==== TAMBAHAN: Skill Level 3 (index 2) "Lompatan Gesit" ====
+        double currentJumpVel = jumpVel;
+        if (currentLevel >= 2) { // Mulai dari level 3
+            currentJumpVel *= 1.5; // Tambah 50% tinggi lompatan
+        }
+        // ==========================================================
+
         // lompat
         if (jump && onGround) {
-            vy = -jumpVel;
+            vy = -currentJumpVel; // Gunakan lompatan yang sudah dimodifikasi
             onGround = false;
         }
 
+        // ... (Tidak ada perubahan di 'ANIM STATE' dan 'RUN FRAME') ...
         // ============ ANIM STATE ============
         if (!onGround) {
-            // di udara → selalu sprite Jump
             animState = AnimState.JUMP;
         } else if (movePressed && Math.abs(vx) > 20) {
-            // tombol kiri/kanan sedang ditekan & cukup cepat → RUN
             animState = AnimState.RUN;
         } else {
-            // selain itu → STAND
             animState = AnimState.STAND;
         }
 
@@ -141,7 +158,6 @@ public class Player {
                 runFrame = 1 - runFrame; // 0 <-> 1
             }
         } else {
-            // kalau bukan RUN, pastikan frame & timer reset
             runTimer = 0;
             runFrame = 0;
         }
@@ -174,6 +190,16 @@ public class Player {
         g.save();
         g.setGlobalAlpha(alpha);
 
+        // ==== TAMBAHAN: Reward "Golden Player" ====
+        if (GameCanvas.gameBeaten) {
+            ColorAdjust goldEffect = new ColorAdjust();
+            goldEffect.setHue(-0.1); // Geser warna ke arah kuning
+            goldEffect.setSaturation(0.5); // Tambah saturasi
+            goldEffect.setBrightness(0.2); // Buat lebih cerah
+            g.setEffect(goldEffect);
+        }
+        // ========================================
+
         if (facingRight) {
             g.drawImage(img, drawX, drawY, drawW, drawH);
         } else {
@@ -182,7 +208,7 @@ public class Player {
             g.drawImage(img, 0, 0, drawW, drawH);
         }
 
-        g.restore();
+        g.restore(); // Ini akan mereset efek (goldEffect) juga
     }
 
     public Rectangle2D bounds() {
@@ -190,6 +216,7 @@ public class Player {
     }
 
     // ============ COLLISION HELPERS ============
+    // ... (Tidak ada perubahan di collideX dan collideY) ...
 
     private double collideX(double oldX, double newX, double y, double w, double h,
             TiledMap map, int tile) {
