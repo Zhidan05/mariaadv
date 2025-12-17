@@ -9,8 +9,11 @@
   <properties>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
-    <exec.mainClass>com.platformer.MainApp</exec.mainClass>
+    <exec.mainClass>com.platformer.Launcher</exec.mainClass>
     <javafx.version>21.0.4</javafx.version>
+    
+    <!-- Properti untuk nama file JAR -->
+    <project.build.finalName>${project.artifactId}-${project.version}</project.build.finalName>
   </properties>
 
   <dependencies>
@@ -19,22 +22,15 @@
       <artifactId>javafx-controls</artifactId>
       <version>${javafx.version}</version>
     </dependency>
-
-    <!-- 
-      TAMBAHKAN DEPENDENSI INI 
-      Ini akan mengunduh file JAR untuk Media (MediaPlayer, Audio, Video)
-    -->
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-media</artifactId>
       <version>${javafx.version}</version>
     </dependency>
-
   </dependencies>
 
   <build>
     <resources>
-      <!-- SALIN SEMUA FILE di assets/ ke classpath -->
       <resource>
         <directory>assets</directory>
         <includes>
@@ -49,9 +45,93 @@
         <artifactId>javafx-maven-plugin</artifactId>
         <version>0.0.8</version>
         <configuration>
-          <mainClass>com.platformer.MainApp</mainClass>
+          <mainClass>com.platformer.Launcher</mainClass>
         </configuration>
       </plugin>
+
+      <!-- Plugin "Fat JAR" Anda (tetap diperlukan) -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.platformer.Launcher</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 
+        PLUGIN BARU: Untuk menjalankan jpackage dan membuat .exe
+        Ini akan berjalan setelah 'package' (saat JAR sudah dibuat)
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <execution>
+            <id>run-jpackage</id>
+            <!-- Ikat ke fase 'verify' agar berjalan SETELAH 'package' -->
+            <phase>verify</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <!-- Path ke 'jpackage' (ada di dalam folder /bin/ JDK 21 Anda) -->
+              <executable>jpackage</executable>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <arguments>
+                <argument>--type</argument>
+                <argument>exe</argument>
+                
+                <argument>--name</argument>
+                <argument>MariaAdventurer</argument> <!-- Nama aplikasi Anda -->
+                
+                <argument>--app-version</argument>
+                <argument>${project.version}</argument>
+                
+                <argument>--vendor</argument>
+                <argument>Platformer2D Team</argument> <!-- Nama Anda/Tim Anda -->
+                
+                <argument>--dest</argument>
+                <argument>target/installer</argument> <!-- Folder output -->
+                
+                <argument>--input</argument>
+                <argument>target</argument> <!-- Folder input (tempat .jar berada) -->
+                
+                <argument>--main-jar</argument>
+                <argument>${project.build.finalName}.jar</argument> <!-- Nama file JAR Anda -->
+                
+                <argument>--main-class</argument>
+                <argument>com.platformer.Launcher</argument>
+                
+                <argument>--icon</argument>
+                <argument>assets/icons/icon.ico</argument> <!-- Path ke ikon .ico Anda -->
+                
+                <!-- Ini akan memperbaiki warning 'restricted method' di log Anda -->
+                <argument>--java-options</argument>
+                <argument>--enable-native-access=javafx.graphics,javafx.media</argument>
+                
+                <!-- Opsi Windows -->
+                <argument>--win-shortcut</argument>
+                <argument>--win-menu</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
     </plugins>
   </build>
 </project>

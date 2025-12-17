@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="40" height="22" tilewidth="32" tileheight="32" infinite="0" nextlayerid="5" nextobjectid="15">
- <tileset firstgid="1" source="../tiles/1Tiles.tsx"/>
+ <tileset firstgid="1" source="../tiles/1tiles.tsx"/>
  <tileset firstgid="97" source="../tiles/Benches.tsx"/>
  <tileset firstgid="101" source="../tiles/Accessories.tsx"/>
  <tileset firstgid="105" source="../tiles/Bushes.tsx"/>

@@ -9,10 +9,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.InputStream;
 import java.util.*;
 
-/**
- * Loader TMX/TSX sederhana (Visual + Solid + Objects).
- * Tambahan: dukungan slope & object 'enemy' -> spawn list.
- */
 public class TiledMap {
 
     // ==== public API ====
@@ -23,11 +19,7 @@ public class TiledMap {
     public double getSpawnX() { return spawnX; }
     public double getSpawnY() { return spawnY; }
     public boolean showColliderOverlay = false;
-
-    // NEW: daftar spawn musuh (pixel top-left untuk lingkaran enemy)
     public List<double[]> getEnemySpawns() { return Collections.unmodifiableList(enemySpawns); }
-
-    // slope
     public enum Slope { NONE, UP_RIGHT, UP_LEFT }
 
     public boolean isSolid(int tx, int ty) {
@@ -82,9 +74,8 @@ public class TiledMap {
     private double spawnX = 80, spawnY = 80;
     private Rectangle2D doorRect;
     private int doorGid = -1; private double doorDx = 0, doorDy = 0;
-
-    // NEW: enemy spawns
     private final List<double[]> enemySpawns = new ArrayList<>();
+    private boolean spawnPointFound = false; // PERBAIKAN: Lacak spawn point
 
     private static class Tileset {
         int firstGid;
@@ -99,9 +90,11 @@ public class TiledMap {
 
     private void loadTmx(String tmxRes) {
         try {
-            InputStream is = tryRes(tmxRes);
-            if (is == null) is = tryRes("/assets" + tmxRes);
-            if (is == null) throw new RuntimeException("TMX tidak ditemukan: " + tmxRes);
+            InputStream is = tryRes(tmxRes); 
+            if (is == null) {
+                // Beri pesan error yang jelas jika file .tmx tidak ada
+                throw new RuntimeException("TMX file not found at path: " + tmxRes + ". Periksa folder 'assets/maps/' Anda.");
+            }
 
             Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(is);
             Element map = doc.getDocumentElement();
@@ -114,12 +107,14 @@ public class TiledMap {
             for (int i = 0; i < tsList.getLength(); i++) {
                 Element tsEl = (Element) tsList.item(i);
                 int firstGid = Integer.parseInt(tsEl.getAttribute("firstgid"));
-                String source = tsEl.getAttribute("source");
+                String source = tsEl.getAttribute("source"); // e.g., "../tiles/tileset.tsx"
                 Tileset ts = new Tileset(); ts.firstGid = firstGid;
+                
+                String tmxBaseFolder = tmxRes.substring(0, tmxRes.lastIndexOf('/') + 1); // e.g. "/maps/"
                 if (source != null && !source.isEmpty()) {
-                    parseTsx("/maps/", source, ts);
+                    parseTsx(tmxBaseFolder, source, ts);
                 } else {
-                    parseTilesetElement(tsEl, ts, "/maps/");
+                    parseTilesetElement(tsEl, ts, tmxBaseFolder);
                 }
                 tsByFirstGid.put(firstGid, ts);
             }
@@ -141,7 +136,6 @@ public class TiledMap {
                 parseCsvInto(csv, target);
             }
 
-            // object layers
             NodeList ogNodes = map.getElementsByTagName("objectgroup");
             for (int i = 0; i < ogNodes.getLength(); i++) {
                 Element og = (Element) ogNodes.item(i);
@@ -155,11 +149,13 @@ public class TiledMap {
                     double ox = getDoubleOr(o, "x", 0);
                     double oy = getDoubleOr(o, "y", 0);
 
-                    if ("spawn".equals(name) || "player".equals(name)) {
+                    if ("spawn".equals(name) || "player".equals(name) || "objects".equals(name)) {
                         spawnX = ox;
                         spawnY = oy - tile;
+                        spawnPointFound = true; // PERBAIKAN: Tandai bahwa spawn ditemukan
                         continue;
                     }
+
                     if ("door".equals(name)) {
                         double w = getDoubleOr(o, "width", 0);
                         double h = getDoubleOr(o, "height", 0);
@@ -177,37 +173,40 @@ public class TiledMap {
                         doorRect = new Rectangle2D(ox, oy - h, w, h);
                         continue;
                     }
-                    // NEW: enemy spawn (titik). Jika object tile, pakai oy - tinggi? karena tile object y = bottom.
                     if ("enemy".equals(name)) {
                         double ex = ox;
-                        double ey = oy - tile; // kira-kira sejajar grid
+                        double ey = oy - tile; 
                         enemySpawns.add(new double[]{ex, ey});
                     }
                 }
             }
+            
+            // PERBAIKAN: Periksa apakah spawn point ditemukan setelah loop selesai
+            if (!spawnPointFound) {
+                throw new RuntimeException("Spawn point (nama: 'spawn', 'player', atau 'objects') tidak ditemukan di TMX: " + tmxRes);
+            }
 
         } catch (Exception e) {
+            // Ini akan mencetak error ke terminal jika level freeze
             throw new RuntimeException("Gagal memuat TMX: " + tmxRes + " ∙ " + e.getMessage(), e);
         }
     }
 
     private void parseTsx(String baseFolder, String tsxRel, Tileset ts) throws Exception {
-        String tsxRes = resolveFrom(baseFolder, tsxRel);
+        String tsxRes = resolveFrom(baseFolder, tsxRel); // e.g. "/tiles/tileset.tsx"
+        
         InputStream is = tryRes(tsxRes);
-        if (is == null) is = tryRes("/assets" + tsxRes);
-        if (is == null && tsxRes.startsWith("/maps/")) {
-            String file = tsxRes.substring(tsxRes.lastIndexOf('/') + 1);
-            is = tryRes("/tiles/" + file);
-            if (is == null) is = tryRes("/assets/tiles/" + file);
+        if (is == null) {
+             // Beri pesan error yang jelas jika file .tsx tidak ada
+            throw new RuntimeException("TSX file not found. TMX mencoba memuat: " + tsxRel + " (Resolved ke: " + tsxRes + ")");
         }
-        if (is == null) throw new RuntimeException("TSX tidak ditemukan: " + tsxRes);
 
         Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(is);
         Element tsEl = doc.getDocumentElement();
-        parseTilesetElement(tsEl, ts, tsxRes.substring(0, tsxRes.lastIndexOf('/') + 1));
+        String tsxBaseFolder = tsxRes.substring(0, tsxRes.lastIndexOf('/') + 1); // e.g. "/tiles/"
+        parseTilesetElement(tsEl, ts, tsxBaseFolder);
     }
 
-    /** Baca elemen <tileset> (spritesheet / collection); sekaligus baca properti "slope". */
     private void parseTilesetElement(Element tsEl, Tileset ts, String basePath) {
         NodeList imageNodes = tsEl.getElementsByTagName("image");
         NodeList tileNodes  = tsEl.getElementsByTagName("tile");
@@ -219,8 +218,9 @@ public class TiledMap {
 
         if (imageNodes.getLength() > 0 && tileNodes.getLength() == 0) {
             Element img = (Element) imageNodes.item(0);
-            String src = resolveFrom(basePath, img.getAttribute("source"));
-            ts.sheet = loadImage(src);
+            String imgSrc = img.getAttribute("source"); // e.g., "tileset.png"
+            String imgRes = resolveFrom(basePath, imgSrc); // e.g. "/tiles/tileset.png"
+            ts.sheet = loadImage(imgRes); // loadImage akan mencari path ini
             ts.columns = getInt(tsEl, "columns",
                     (int) Math.max(1, Math.floor((ts.sheet.getWidth() - ts.margin * 2 + ts.spacing) /
                                                  (ts.tileWidth + ts.spacing))));
@@ -236,8 +236,9 @@ public class TiledMap {
             if (!ts.spritesheet) {
                 Element imgEl = (Element) tileEl.getElementsByTagName("image").item(0);
                 if (imgEl != null) {
-                    String src = resolveFrom(basePath, imgEl.getAttribute("source"));
-                    ts.imagesByLocalId.put(localId, loadImage(src));
+                    String imgSrc = imgEl.getAttribute("source");
+                    String imgRes = resolveFrom(basePath, imgSrc);
+                    ts.imagesByLocalId.put(localId, loadImage(imgRes));
                 }
             }
 
@@ -310,27 +311,46 @@ public class TiledMap {
         return best;
     }
 
-    private static InputStream tryRes(String path) { return TiledMap.class.getResourceAsStream(path); }
+    private static InputStream tryRes(String path) { 
+        return TiledMap.class.getResourceAsStream(path); 
+    }
+    
     private static Image loadImage(String classpath) {
         InputStream is = tryRes(classpath);
-        if (is == null) is = tryRes("/assets" + classpath);
-        if (is == null) throw new RuntimeException("Gambar tidak ditemukan: " + classpath);
+        if (is == null) {
+            // Beri pesan error yang jelas jika gambar tileset tidak ada
+            throw new RuntimeException("Image file not found at path: " + classpath);
+        }
         return new Image(is);
     }
+
     private static String resolveFrom(String base, String rel) {
-        if (rel.startsWith("/")) return rel;
-        String path = base + rel;
-        while (path.contains("/./")) path = path.replace("/./", "/");
-        while (path.contains("../")) {
-            int i = path.indexOf("../");
-            if (i <= 0) break;
-            int slash = path.lastIndexOf('/', i - 2);
-            if (slash >= 0) path = path.substring(0, slash + 1) + path.substring(i + 3);
-            else path = path.substring(i + 3);
+        // e.g. base = "/maps/", rel = "../tiles/tileset.tsx"
+        if (rel.startsWith("/") || rel.matches("^[a-zA-Z]:.*")) return rel; 
+        
+        String path;
+        if (base.endsWith("/")) {
+            path = base + rel;
+        } else {
+            path = base.substring(0, base.lastIndexOf('/') + 1) + rel;
         }
+
+        // Normalisasi path (../)
+        LinkedList<String> parts = new LinkedList<>(Arrays.asList(path.split("/")));
+        for (int i = 0; i < parts.size(); i++) {
+            if (parts.get(i).equals("..") && i > 0) {
+                parts.remove(i);   // Hapus ".."
+                parts.remove(i - 1); // Hapus folder sebelumnya
+                i -= 2; // Mundur untuk cek ulang
+            }
+        }
+        
+        path = String.join("/", parts);
         if (!path.startsWith("/")) path = "/" + path;
+        
         return path;
     }
+    
     private static int getInt(Element el, String attr, int def) {
         return el.hasAttribute(attr) ? Integer.parseInt(el.getAttribute(attr)) : def;
     }

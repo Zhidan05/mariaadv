@@ -14,11 +14,23 @@ public class Input {
             if (c == KeyCode.D || c == KeyCode.RIGHT) right = true;
             if (c == KeyCode.W || c == KeyCode.UP || c == KeyCode.SPACE) up = true;
         });
+        
         scene.addEventHandler(KeyEvent.KEY_RELEASED, e -> {
             KeyCode c = e.getCode();
             if (c == KeyCode.A || c == KeyCode.LEFT)  left  = false;
             if (c == KeyCode.D || c == KeyCode.RIGHT) right = false;
             if (c == KeyCode.W || c == KeyCode.UP || c == KeyCode.SPACE) up = false;
         });
+    }
+
+    /**
+     * Method PENTING untuk mereset semua status tombol.
+     * Ini dipanggil saat game di-pause atau pop-up muncul
+     * untuk mencegah "sticky keys".
+     */
+    public void clear() {
+        left = false;
+        right = false;
+        up = false;
     }
 }

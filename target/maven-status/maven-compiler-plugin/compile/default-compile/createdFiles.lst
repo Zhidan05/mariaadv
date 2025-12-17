@@ -1,16 +1,1 @@
-com\platformer\GameCanvas$1.class
-com\platformer\MainApp$1.class
-com\platformer\tiled\TiledMap$Tileset.class
-com\platformer\objects\Player$AnimState.class
-com\platformer\tiled\TiledMap.class
-com\platformer\input\Input.class
-com\platformer\GameConfig.class
-com\platformer\objects\Enemy.class
-com\platformer\objects\Player$YRes.class
-com\platformer\objects\Enemy$YRes.class
-com\platformer\MainApp.class
-com\platformer\tiled\TiledMap$Slope.class
-com\platformer\GameCanvas$State.class
-com\platformer\GameCanvas.class
-com\platformer\objects\Enemy$AnimState.class
-com\platformer\objects\Player.class
+com\platformer\skills\SkillManager$1.class

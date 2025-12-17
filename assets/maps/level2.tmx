@@ -3,7 +3,7 @@
  <tileset firstgid="1" source="../tiles/1tiles.tsx"/>
  <tileset firstgid="97" source="../tiles/bench.tsx"/>
  <tileset firstgid="101" source="../tiles/background.tsx"/>
- <tileset firstgid="107" source="../tiles/1Tiles.tsx"/>
+ <tileset firstgid="107" source="../tiles/1tiles.tsx"/>
  <tileset firstgid="203" source="../tiles/Accessories.tsx"/>
  <tileset firstgid="207" source="../tiles/Bushes.tsx"/>
  <tileset firstgid="227" source="../tiles/tree.tsx"/>
